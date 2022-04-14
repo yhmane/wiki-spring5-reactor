@@ -18,7 +18,7 @@ class TemperatureController {
 
     @RequestMapping(value = ["/temperature-stream"], method = [RequestMethod.GET])
     fun events(request: HttpServletRequest): SseEmitter {
-        val emitter = SseEmitter(SSE_SESSION_TIMEOUT)
+        val emitter = SseEmitter()
         clients.add(emitter)
 
         emitter.onTimeout { clients.remove(emitter) }
@@ -39,10 +39,5 @@ class TemperatureController {
             }
         }
         clients.removeAll(deadEmitters)
-    }
-
-
-    companion object {
-        const val SSE_SESSION_TIMEOUT = 30 * 60 * 1000L
     }
 }

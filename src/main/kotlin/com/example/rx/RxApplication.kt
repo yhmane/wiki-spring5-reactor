@@ -32,5 +32,3 @@ class RxApplication : AsyncConfigurer {
 fun main(args: Array<String>) {
     runApplication<RxApplication>(*args)
 }
-
-
