@@ -1,29 +1,26 @@
 package com.example.rx.weather
 
-import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
+import rx.Observable
 import java.util.*
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
-import javax.annotation.PostConstruct
+
 
 @Component
-class TemperatureSensor(
-    val publisher: ApplicationEventPublisher,
-) {
+class TemperatureSensor {
     val rnd = Random()
-    val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
 
-    @PostConstruct
-    fun startProcessing() {
-        executor.schedule({ probe() }, 1, TimeUnit.SECONDS)
-    }
+    private val dataStream: Observable<Temperature> = Observable
+        .range(0, Int.MAX_VALUE)
+        .concatMap { tick -> Observable
+            .just(tick)
+            .delay(rnd.nextInt(5000).toLong(), TimeUnit.MILLISECONDS)
+            .map { this.probe() }
+        }
+        .publish()
+        .refCount()
 
-    private fun probe() {
-        val temperature = 16 + rnd.nextGaussian() * 10
-        publisher.publishEvent(Temperature(temperature))
+    private fun probe(): Temperature = Temperature(16 + rnd.nextGaussian() * 10)
 
-        executor.schedule({ probe() }, rnd.nextInt(5000).toLong(), TimeUnit.MILLISECONDS)
-    }
+    fun temperatureStream(): Observable<Temperature> = dataStream
 }
