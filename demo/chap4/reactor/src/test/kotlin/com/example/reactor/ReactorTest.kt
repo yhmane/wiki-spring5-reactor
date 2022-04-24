@@ -3,11 +3,11 @@ package com.example.reactor
 import mu.KotlinLogging
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
-import org.reactivestreams.Subscription
 import reactor.core.Disposable
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import java.time.Duration
+import java.time.Instant
 import java.util.*
 
 private val log = KotlinLogging.logger {}
@@ -93,5 +93,62 @@ class ReactorTest {
 
         Thread.sleep(200)
         disposable.dispose()
+    }
+
+    @Test
+    fun indexElements() {
+        Flux.range(2018, 5) // 2018, 2019, 2020, 2021, 2022
+            .timestamp()    // Flux<Tuple2<Long, Integer>> Long: timestamp, Integer: range
+            .index()        // Flux<Tuple2<Long, Tuple2<Long, Integer>>> Long: index, // Long: timestamp, Integer: range
+            .subscribe { e -> log.info { "index: ${e.t1}, ts:${Instant.ofEpochMilli(e.t2.t1)}, value: ${e.t2.t2}" } }
+    }
+
+
+    @Test
+    fun startStopStreamProcessing() {
+        val startCommand: Mono<*> = Mono.delay(Duration.ofSeconds(1))
+        val stopCommand: Mono<*> = Mono.delay(Duration.ofSeconds(3))
+        val streamOfData = Flux.interval(Duration.ofMillis(100))
+
+        streamOfData
+            .skipUntilOther(startCommand)
+            .takeUntilOther(stopCommand)
+            .subscribe { x -> log.info {x} }
+        Thread.sleep(4000)
+    }
+
+    @Test
+    fun collectSort() {
+        Flux.just(1, 6, 8, 3, 1, 5, 1)
+            .collectSortedList(Comparator.reverseOrder())
+            .subscribe{ x -> log.info { x } }
+    }
+
+    @Test
+    fun findingIfThereIsEvenElements() {
+        Flux.just(3, 5, 7, 9, 11, 15, 16, 17)
+            .any { e -> e % 2 == 0 }
+            .subscribe {hasEvens -> log.info { "Has evens: $hasEvens" }}
+    }
+
+    @Test
+    fun reduceExample() {
+        Flux.range(1, 5)
+            .reduce(0) { acc, elem -> acc + elem }
+            .subscribe { result -> log.info {"Result: $result" } }
+    }
+
+    @Test
+    fun scanExample() {
+        Flux.range(1, 5)
+            .scan(0) { acc, elem -> acc + elem }
+            .subscribe { result -> log.info {"Result: $result" } }
+    }
+
+    @Test
+    fun thenOperator() {
+        Flux.just(1, 2, 3)
+            .thenMany(Flux.just(4, 5))
+            .subscribe {e -> log.info {"onNext: $e"} }
     }
 }
