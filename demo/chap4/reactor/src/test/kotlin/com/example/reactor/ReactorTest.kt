@@ -151,4 +151,68 @@ class ReactorTest {
             .thenMany(Flux.just(4, 5))
             .subscribe {e -> log.info {"onNext: $e"} }
     }
+
+    @Test
+    fun concatExample() {
+        Flux.concat(
+            Flux.range(1, 3),
+            Flux.range(4, 2),
+            Flux.range(6, 5)
+        ).subscribe {
+            e -> log.info {"onNext: $e"}
+        }
+    }
+
+    @Test
+    fun bufferExample() {
+        Flux.range(1, 13)
+            .buffer(5)
+            .subscribe { e -> log.info {"onNext $e"} }
+    }
+
+    @Test
+    fun flatMapExample() {
+        Flux.just("user-1", "user-2", "user-3")
+            .flatMap { u -> requestBooks(u)
+                    .map { b: String -> "$u/$b" }
+            }
+            .subscribe { r -> log.info {"onNext: $r" } }
+
+        Thread.sleep(1000)
+    }
+
+    private fun requestBooks(user: String): Flux<String> {
+        return Flux.range(1, Random().nextInt(3) + 1)
+            .delayElements(Duration.ofMillis(3))
+            .map { i: Int -> "book-$i" }
+    }
+
+    @Test
+    fun sampleExample() {
+        Flux.range(1, 100)
+            .delayElements(Duration.ofMillis(1))
+            .sample(Duration.ofMillis(20))
+            .subscribe { e -> log.info {"onNext: $e"}}
+
+        Thread.sleep(1000)
+    }
+
+    @Test
+    fun doOnExample() {
+        Flux.just(1, 2, 3)
+            .concatWith(Flux.error(RuntimeException("Conn Error")))
+            .doOnEach { s -> log.info { "signal: $s" } }
+            .subscribe()
+    }
+
+    @Test
+    fun signalProcessing() {
+        Flux.range(1, 3)
+            .doOnNext { e -> log.info {"data: $e"} }
+            .materialize()
+            .doOnNext { e -> log.info {"signal: $e"} }
+            .dematerialize<Long>()
+            .collectList()
+            .subscribe { r -> log.info {"result: $r"} }
+    }
 }
