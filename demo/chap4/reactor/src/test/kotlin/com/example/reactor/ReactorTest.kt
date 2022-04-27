@@ -3,15 +3,24 @@ package com.example.reactor
 import mu.KotlinLogging
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
+import org.reactivestreams.Publisher
 import reactor.core.Disposable
 import reactor.core.publisher.Flux
+import reactor.core.publisher.FluxSink
 import reactor.core.publisher.Mono
+import reactor.core.publisher.SynchronousSink
+import reactor.util.function.Tuple2
+import reactor.util.function.Tuples
+import java.sql.Connection
 import java.time.Duration
 import java.time.Instant
 import java.util.*
+import java.util.function.Function
+import java.util.stream.IntStream
 
 private val log = KotlinLogging.logger {}
 
+@Suppress("UNUSED_EXPRESSION")
 class ReactorTest {
 
     @Disabled("testIsEndless")
@@ -214,5 +223,81 @@ class ReactorTest {
             .dematerialize<Long>()
             .collectList()
             .subscribe { r -> log.info {"result: $r"} }
+    }
+
+    @Test
+    fun usingPushOperator() {
+        Flux.push { emitter: FluxSink<Int> ->
+            IntStream.range(2000, 3000)
+                .forEach(emitter::next)
+        }
+            .delayElements(Duration.ofMillis(1))
+            .subscribe { e -> log.info { "onNext: $e" } }
+
+        Thread.sleep(1000)
+    }
+
+    @Test
+    fun usingCreateOperator() {
+        Flux.create { emitter:FluxSink<Int> ->
+            emitter.onDispose { log.info { "Disposed" } }
+            // push events to emitter
+        }
+            .subscribe { e -> log.info { "onNext: $e" } }
+
+        Thread.sleep(1000)
+    }
+
+    @Test
+    fun usingGenerate() {
+        Flux.generate(
+            { Tuples.of(0L, 1L) },
+            { state: Tuple2<Long, Long>, sink: SynchronousSink<Any?> ->
+                log.info { "generated value: ${state.t2}" }
+                sink.next(state.t2)
+                Tuples.of(state.t2, state.t1 + state.t2)
+            }
+        )
+            .take(7)
+            .subscribe { e -> log.info("onNext: {}", e) }
+
+        Thread.sleep(100)
+    }
+
+    @Test
+    fun usingOperator() {
+        val ioRequestResults = Flux.using(
+            Connection::newConnection,
+            { connection -> Flux.fromIterable(connection.data) },
+            Connection::close
+        )
+
+        ioRequestResults
+            .subscribe (
+                { data -> log.info { "Received data: $data" } },
+                { e -> log.info { "Error: ${e.message}" } },
+                { log.info("Stream finished") },
+            )
+    }
+
+    internal class Connection : AutoCloseable {
+        private val rnd = Random()
+        val data: Iterable<String>
+            get() {
+                if (rnd.nextInt(10) < 3) {
+                    throw RuntimeException("Communication error")
+                }
+                return listOf("Some", "data")
+            }
+        override fun close() {
+            log.info("IO Connection closed")
+        }
+
+        companion object {
+            fun newConnection(): Connection {
+                log.info("IO Connection created")
+                return Connection()
+            }
+        }
     }
 }
